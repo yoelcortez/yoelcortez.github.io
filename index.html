@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TopoField Pro - Calculadora de Topografía</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      touch-action: manipulation;
+      background-color: #090d16;
+      color: #f3f4f6;
+    }
+    
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Ocultar flechas en inputs de tipo number */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between pb-16 md:pb-0 select-none">
+
+  <!-- Header App Mobile -->
+  <header class="bg-gray-900/90 backdrop-blur border-b border-gray-800 sticky top-0 z-30 px-4 py-3 flex justify-between items-center shadow-lg">
+    <div class="flex items-center space-x-2.5">
+      <div class="bg-amber-500 text-gray-950 p-2 rounded-xl font-bold flex items-center justify-center shadow-lg shadow-amber-500/20">
+        <i data-lucide="compass" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-gray-100 leading-none flex items-center gap-2">
+          TopoField <span class="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono">PRO</span>
+        </h1>
+        <p class="text-xs text-gray-400 mt-0.5">Topografía & Nivelación de Campo</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button onclick="clearCurrentProject()" class="text-xs px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 flex items-center gap-1 transition">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-red-400"></i>
+        <span class="hidden sm:inline">Reset</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mensaje de Notificación (Toast) -->
+  <div id="toast" class="fixed top-16 left-1/2 transform -translate-x-1/2 z-50 bg-amber-500 text-gray-950 px-4 py-2 rounded-xl text-sm font-semibold shadow-xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none">
+    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+    <span id="toast-text">Acción realizada</span>
+  </div>
+
+  <!-- Contenido Principal -->
+  <main class="max-w-4xl w-full mx-auto p-3 sm:p-5 flex-grow">
+    
+    <!-- Pestañas de Navegación Móvil -->
+    <div class="grid grid-cols-4 gap-1.5 bg-gray-900 p-1.5 rounded-2xl border border-gray-800 mb-4 shadow-inner">
+      <button onclick="switchTab('nivelacion')" id="tab-btn-nivelacion" class="tab-btn flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 rounded-xl text-xs font-semibold transition bg-amber-500 text-gray-950 shadow-md">
+        <i data-lucide="trending-up" class="w-4 h-4"></i>
+        <span>Nivelación</span>
+      </button>
+      <button onclick="switchTab('radiacion')" id="tab-btn-radiacion" class="tab-btn flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-200 transition">
+        <i data-lucide="navigation" class="w-4 h-4"></i>
+        <span>Radiación</span>
+      </button>
+      <button onclick="switchTab('inversa')" id="tab-btn-inversa" class="tab-btn flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-200 transition">
+        <i data-lucide="move-up-right" class="w-4 h-4"></i>
+        <span>Inversa</span>
+      </button>
+      <button onclick="switchTab('puntos')" id="tab-btn-puntos" class="tab-btn flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 px-1 rounded-xl text-xs font-semibold text-gray-400 hover:text-gray-200 transition relative">
+        <i data-lucide="database" class="w-4 h-4"></i>
+        <span>Puntos</span>
+        <span id="badge-count" class="absolute -top-1 -right-1 bg-amber-500 text-gray-950 font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+      </button>
+    </div>
+
+    <!-- MÓDULO 1: NIVELACIÓN GEOMÉTRICA -->
+    <section id="sec-nivelacion" class="tab-content space-y-4">
+      <!-- Card Estado Actual de Nivelación -->
+      <div class="bg-gradient-to-r from-gray-900 via-gray-900 to-gray-800 border border-gray-800 rounded-2xl p-4 shadow-md relative overflow-hidden">
+        <div class="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <span class="text-xs text-gray-400 block font-medium">Estación / BM Actual</span>
+            <span id="disp-bm-nombre" class="text-base font-bold text-gray-100 font-mono-code">BM-1</span>
+          </div>
+          <div>
+            <span class="text-xs text-gray-400 block font-medium">Cota Estación / BM</span>
+            <span id="disp-bm-cota" class="text-lg font-extrabold text-amber-400 font-mono-code">1000.000 m</span>
+          </div>
+          <div class="col-span-2 pt-2 border-t border-gray-800 flex justify-between items-center">
+            <span class="text-xs text-gray-400">Altura Instrumento (AI = Cota + VA):</span>
+            <span id="disp-ai" class="text-base font-bold text-emerald-400 font-mono-code">--- m</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario Nivelación -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4 shadow-lg">
+        <h2 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <i data-lucide="pen-tool" class="w-4 h-4 text-amber-400"></i> Entrada de Datos de Campo
+        </h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- ID del Punto -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Nombre Punto / Cota</label>
+            <input type="text" id="niv-punto" placeholder="P-1" value="P-1" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+          <!-- Tipo de Vista -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Tipo Lectura Mira</label>
+            <select id="niv-tipo" onchange="toggleNivTipo()" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-amber-500 font-semibold">
+              <option value="VA">Vista Atrás (VA) - Iniciar/Cambio</option>
+              <option value="VI" selected>Vista Intermedia (VI)</option>
+              <option value="VD">Vista Adelante (VD) - Cambio Estación</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Valor de Lectura (Mira) -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Lectura Mira (m)</label>
+            <input type="number" step="0.001" id="niv-lectura" placeholder="1.452" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-3 text-lg font-bold text-amber-400 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+          <!-- Cota Inicial (Sólo si es el primer BM) -->
+          <div id="container-cota-inicial">
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Cota Terreno / BM (m)</label>
+            <input type="number" step="0.001" id="niv-cota-bm" value="1000.000" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-3 text-lg font-bold text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+        </div>
+
+        <!-- Descripción corta -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Descripción / Observación</label>
+          <input type="text" id="niv-desc" placeholder="Ej: Esquina de vereda / Clavo en poste" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+        </div>
+
+        <button onclick="calcularNivelacion()" class="w-full bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-gray-950 font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition text-base">
+          <i data-lucide="plus-circle" class="w-5 h-5"></i>
+          Calcular & Registrar Cota
+        </button>
+      </div>
+
+      <!-- Resumen rápido de Nivelación -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-md">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Último Calculado</h3>
+          <span id="niv-calc-tipo" class="text-[10px] bg-emerald-500/20 text-emerald-400 font-mono border border-emerald-500/30 px-2 py-0.5 rounded">---</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+            <span class="text-[11px] text-gray-400 block">Punto</span>
+            <span id="calc-res-punto" class="text-base font-bold text-gray-200 font-mono-code">---</span>
+          </div>
+          <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+            <span class="text-[11px] text-gray-400 block">Cota Calculada</span>
+            <span id="calc-res-cota" class="text-base font-bold text-emerald-400 font-mono-code">--- m</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 2: RADIACIÓN / POLIGONAL Y COORDENADAS 3D -->
+    <section id="sec-radiacion" class="tab-content hidden space-y-4">
+      <!-- Configuración Punto Estación -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3 shadow-md">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="map-pin" class="w-4 h-4"></i> Estación Ocupada (Origen)
+          </h2>
+          <button onclick="toggleEstacionPanel()" class="text-xs text-gray-400 hover:text-amber-400 underline">Editar Origen</button>
+        </div>
+        
+        <div id="estacion-inputs" class="grid grid-cols-3 gap-2 pt-1">
+          <div>
+            <label class="block text-[10px] text-gray-400">Norte (N)</label>
+            <input type="number" step="0.001" id="est-norte" value="8000000.000" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-gray-200 font-mono-code">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400">Este (E)</label>
+            <input type="number" step="0.001" id="est-este" value="500000.000" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-gray-200 font-mono-code">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400">Cota (Z)</label>
+            <input type="number" step="0.001" id="est-cota" value="2500.000" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2 text-xs text-gray-200 font-mono-code">
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos del Punto Radiado -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4 shadow-lg">
+        <h2 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <i data-lucide="crosshair" class="w-4 h-4 text-amber-400"></i> Medición hacia el Punto
+        </h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Nombre Punto Target</label>
+            <input type="text" id="rad-punto" value="RAD-1" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Altura Prisma (hp) [m]</label>
+            <input type="number" step="0.001" id="rad-hp" value="1.600" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+        </div>
+
+        <!-- Modo de Ángulo -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-semibold text-gray-400">Acimut (Ángulo Horizontal)</label>
+            <div class="flex items-center gap-2 text-xs">
+              <label class="text-gray-400 cursor-pointer flex items-center gap-1">
+                <input type="radio" name="azim-fmt" value="DEC" checked onchange="toggleAzimFmt()" class="accent-amber-500"> Dec (125.45°)
+              </label>
+              <label class="text-gray-400 cursor-pointer flex items-center gap-1">
+                <input type="radio" name="azim-fmt" value="DMS" onchange="toggleAzimFmt()" class="accent-amber-500"> GMS (125° 27' 00")
+              </label>
+            </div>
+          </div>
+
+          <!-- Input Acimut Decimal -->
+          <div id="azim-dec-box">
+            <input type="number" step="0.0001" id="rad-azim-dec" placeholder="Ej: 145.5250" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-base font-bold text-amber-400 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+
+          <!-- Input Acimut GMS -->
+          <div id="azim-gms-box" class="grid grid-cols-3 gap-2 hidden">
+            <input type="number" id="rad-azim-g" placeholder="Grados °" class="bg-gray-950 border border-gray-700 rounded-xl px-2 py-2 text-sm text-amber-400 font-mono-code">
+            <input type="number" id="rad-azim-m" placeholder="Min '" class="bg-gray-950 border border-gray-700 rounded-xl px-2 py-2 text-sm text-amber-400 font-mono-code">
+            <input type="number" step="0.1" id="rad-azim-s" placeholder="Seg &quot;" class="bg-gray-950 border border-gray-700 rounded-xl px-2 py-2 text-sm text-amber-400 font-mono-code">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Distancia -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Dist. Inclinada / Horiz (m)</label>
+            <input type="number" step="0.001" id="rad-dist" placeholder="45.820" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-base font-bold text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+          </div>
+          <!-- Ángulo Vertical / Zenital -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Ángulo Vertical / Zenit (°)</label>
+            <input type="number" step="0.0001" id="rad-vangle" value="90.0000" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 text-base font-bold text-gray-100 focus:outline-none focus:border-amber-500 font-mono-code">
+            <span class="text-[10px] text-gray-500 block mt-0.5">90° = Horizontal</span>
+          </div>
+        </div>
+
+        <button onclick="calcularRadiacion()" class="w-full bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-gray-950 font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition text-base">
+          <i data-lucide="calculator" class="w-5 h-5"></i>
+          Calcular Coordenadas 3D
+        </button>
+      </div>
+
+      <!-- Resultado Coordenadas Radiadas -->
+      <div id="rad-resultado-card" class="bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-md hidden">
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex justify-between items-center">
+          <span>Coordenadas Calculadas</span>
+          <span class="text-emerald-400 text-xs font-mono" id="rad-res-id">PUNTO</span>
+        </h3>
+        <div class="grid grid-cols-3 gap-2 text-center font-mono-code">
+          <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Norte (N)</span>
+            <span id="res-norte" class="text-xs sm:text-sm font-bold text-amber-400">0.000</span>
+          </div>
+          <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Este (E)</span>
+            <span id="res-este" class="text-xs sm:text-sm font-bold text-amber-400">0.000</span>
+          </div>
+          <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Cota (Z)</span>
+            <span id="res-cota" class="text-xs sm:text-sm font-bold text-emerald-400">0.000</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 3: CÁLCULO INVERSO ENTRE 2 PUNTOS -->
+    <section id="sec-inversa" class="tab-content hidden space-y-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4 shadow-lg">
+        <h2 class="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <i data-lucide="arrow-up-right font-bold" class="w-4 h-4 text-amber-400"></i> Cálculo Inverso (Azimut, Distancia y Pendiente)
+        </h2>
+
+        <!-- Punto A -->
+        <div class="space-y-2 border-b border-gray-800 pb-3">
+          <span class="text-xs font-bold text-amber-400">PUNTO A (Inicio)</span>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="inv-n1" placeholder="Norte 1" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+            <input type="number" id="inv-e1" placeholder="Este 1" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+            <input type="number" id="inv-z1" placeholder="Cota 1" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+          </div>
+        </div>
+
+        <!-- Punto B -->
+        <div class="space-y-2">
+          <span class="text-xs font-bold text-amber-400">PUNTO B (Fin)</span>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="inv-n2" placeholder="Norte 2" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+            <input type="number" id="inv-e2" placeholder="Este 2" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+            <input type="number" id="inv-z2" placeholder="Cota 2" class="bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs text-gray-100 font-mono-code">
+          </div>
+        </div>
+
+        <button onclick="calcularInversa()" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 transition">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          Calcular Distancia & Azimut
+        </button>
+      </div>
+
+      <!-- Resultados Inversa -->
+      <div id="inv-resultado" class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3 hidden">
+        <div class="grid grid-cols-2 gap-3 font-mono-code text-center">
+          <div class="bg-gray-950 p-3 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Distancia Horizontal</span>
+            <span id="inv-res-dh" class="text-base font-bold text-amber-400">0.000 m</span>
+          </div>
+          <div class="bg-gray-950 p-3 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Desnivel (ΔZ)</span>
+            <span id="inv-res-dz" class="text-base font-bold text-emerald-400">0.000 m</span>
+          </div>
+          <div class="bg-gray-950 p-3 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Azimut (Grados Decimal)</span>
+            <span id="inv-res-azim" class="text-base font-bold text-gray-200">0° 00' 00"</span>
+          </div>
+          <div class="bg-gray-950 p-3 rounded-xl border border-gray-800">
+            <span class="text-[10px] text-gray-400 block font-sans">Pendiente (%)</span>
+            <span id="inv-res-pend" class="text-base font-bold text-sky-400">0.00 %</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÓDULO 4: REGISTRO & EXPORTACIÓN DE PUNTOS -->
+    <section id="sec-puntos" class="tab-content hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+          <i data-lucide="list" class="w-4 h-4 text-amber-400"></i> Registro de Campo (<span id="total-puntos-count">0</span>)
+        </h2>
+        <div class="flex gap-2">
+          <button onclick="exportarCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> CSV / Excel
+          </button>
+          <button onclick="copiarPUNTOS()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-semibold flex items-center gap-1 border border-gray-700 transition">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copiar
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabla de Puntos -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto max-h-[50vh]">
+          <table class="w-full text-left text-xs font-mono-code">
+            <thead class="bg-gray-950 text-gray-400 sticky top-0 border-b border-gray-800 uppercase tracking-wider text-[10px]">
+              <tr>
+                <th class="p-3">ID</th>
+                <th class="p-3">Norte</th>
+                <th class="p-3">Este</th>
+                <th class="p-3">Cota (Z)</th>
+                <th class="p-3">Tipo / Desc</th>
+                <th class="p-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-puntos-body" class="divide-y divide-gray-800 text-gray-300">
+              <!-- Filas vacías por defecto -->
+              <tr id="row-empty">
+                <td colspan="6" class="p-6 text-center text-gray-500 font-sans italic">
+                  No hay puntos registrados aún. Realiza nivelaciones o radiaciones para guardarlos aquí.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Navbar Inferior Fija para Móviles -->
+  <footer class="bg-gray-950 border-t border-gray-800 fixed bottom-0 left-0 right-0 py-2 px-4 z-40 md:relative">
+    <div class="max-w-4xl mx-auto flex justify-between items-center text-[11px] text-gray-500 font-mono-code">
+      <span>TopoField Mobile v1.2</span>
+      <span class="flex items-center gap-1 text-emerald-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Sistema Listo
+      </span>
+    </div>
+  </footer>
+
+  <!-- LÓGICA JAVASCRIPT DE LA APLICACIÓN -->
+  <script>
+    // ESTADO DE LA APLICACIÓN
+    let puntos = [];
+    let estacionActual = {
+      nombre: 'EST-1',
+      norte: 8000000.000,
+      este: 500000.000,
+      cota: 1000.000,
+      ai: null // Altura de instrumento actual en nivelación
+    };
+
+    // Al cargar la ventana
+    window.onload = function() {
+      lucide.createIcons();
+      cargarLocalStorage();
+      actualizarUIEstacion();
+    };
+
+    // Cambiar de Pestaña
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-amber-500', 'text-gray-950', 'shadow-md');
+        btn.classList.add('text-gray-400');
+      });
+
+      document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      activeBtn.classList.add('bg-amber-500', 'text-gray-950', 'shadow-md');
+      activeBtn.classList.remove('text-gray-400');
+    }
+
+    // Toast de Notificación
+    function showToast(text) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-text').innerText = text;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2500);
+    }
+
+    // Toggle para Nivelación (Ocultar/Mostrar Cota BM)
+    function toggleNivTipo() {
+      const tipo = document.getElementById('niv-tipo').value;
+      const cotaBox = document.getElementById('container-cota-inicial');
+      if (tipo === 'VA' && puntos.length === 0) {
+        cotaBox.classList.remove('hidden');
+      } else if (tipo === 'VA') {
+        cotaBox.classList.remove('hidden');
+      } else {
+        cotaBox.classList.add('hidden');
+      }
+    }
+
+    // MÓDULO 1: NIVELACIÓN GEOMÉTRICA
+    function calcularNivelacion() {
+      const idPunto = document.getElementById('niv-punto').value.trim() || 'P-1';
+      const tipo = document.getElementById('niv-tipo').value;
+      const lectura = parseFloat(document.getElementById('niv-lectura').value);
+      const desc = document.getElementById('niv-desc').value.trim() || tipo;
+
+      if (isNaN(lectura)) {
+        showToast("⚠️ Ingresa una lectura de mira válida");
+        return;
+      }
+
+      let cotaCalculada = 0;
+
+      if (tipo === 'VA') {
+        // Vista Atrás: Establece o recalculá la Altura de Instrumento (AI)
+        const cotaBM = parseFloat(document.getElementById('niv-cota-bm').value);
+        if (isNaN(cotaBM)) {
+          showToast("⚠️ Ingresa la cota del BM inicial");
+          return;
+        }
+        estacionActual.cota = cotaBM;
+        estacionActual.ai = cotaBM + lectura;
+        cotaCalculada = cotaBM;
+
+        document.getElementById('disp-bm-nombre').innerText = idPunto;
+        document.getElementById('disp-bm-cota').innerText = cotaBM.toFixed(3) + " m";
+        document.getElementById('disp-ai').innerText = estacionActual.ai.toFixed(3) + " m";
+
+        showToast(`AI Establecida: ${estacionActual.ai.toFixed(3)} m`);
+      } else {
+        // Vista Intermedia (VI) o Vista Adelante (VD)
+        if (estacionActual.ai === null) {
+          showToast("⚠️ Primero debes ingresar una Vista Atrás (VA) para calcular el AI");
+          return;
+        }
+
+        cotaCalculada = estacionActual.ai - lectura;
+
+        if (tipo === 'VD') {
+          // Vista Adelante significa cambio de estación
+          estacionActual.cota = cotaCalculada;
+          document.getElementById('disp-bm-nombre').innerText = `${idPunto} (Cambio)`;
+          document.getElementById('disp-bm-cota').innerText = cotaCalculada.toFixed(3) + " m";
+          document.getElementById('disp-ai').innerText = "--- (Requiere nueva VA)";
+          estacionActual.ai = null; // Requiere nueva VA
+        }
+      }
+
+      // Actualizar Resumen
+      document.getElementById('calc-res-punto').innerText = idPunto;
+      document.getElementById('calc-res-cota').innerText = cotaCalculada.toFixed(3) + " m";
+      document.getElementById('niv-calc-tipo').innerText = tipo;
+
+      // Registrar Punto
+      agregarPunto({
+        id: idPunto,
+        norte: 0.000,
+        este: 0.000,
+        cota: cotaCalculada,
+        tipo: `NIV (${tipo})`,
+        desc: desc
+      });
+
+      // Incrementar consecutivo
+      incrementarIdPunto('niv-punto');
+      document.getElementById('niv-lectura').value = '';
+    }
+
+    // MÓDULO 2: RADIACIÓN DE COORDENADAS
+    function toggleAzimFmt() {
+      const fmt = document.querySelector('input[name="azim-fmt"]:checked').value;
+      if (fmt === 'DEC') {
+        document.getElementById('azim-dec-box').classList.remove('hidden');
+        document.getElementById('azim-gms-box').classList.add('hidden');
+      } else {
+        document.getElementById('azim-dec-box').classList.add('hidden');
+        document.getElementById('azim-gms-box').classList.remove('hidden');
+      }
+    }
+
+    function calcularRadiacion() {
+      const nOr = parseFloat(document.getElementById('est-norte').value);
+      const eOr = parseFloat(document.getElementById('est-este').value);
+      const zOr = parseFloat(document.getElementById('est-cota').value);
+      const idPunto = document.getElementById('rad-punto').value.trim() || 'RAD-1';
+      const hp = parseFloat(document.getElementById('rad-hp').value) || 0;
+      const dist = parseFloat(document.getElementById('rad-dist').value);
+      const vAngleDeg = parseFloat(document.getElementById('rad-vangle').value);
+
+      if (isNaN(dist) || isNaN(nOr) || isNaN(eOr)) {
+        showToast("⚠️ Revisa las coordenadas de origen y la distancia");
+        return;
+      }
+
+      // Obtener Acimut en Grados Decimales
+      let azimDecimal = 0;
+      const fmt = document.querySelector('input[name="azim-fmt"]:checked').value;
+      if (fmt === 'DEC') {
+        azimDecimal = parseFloat(document.getElementById('rad-azim-dec').value);
+      } else {
+        const g = parseFloat(document.getElementById('rad-azim-g').value) || 0;
+        const m = parseFloat(document.getElementById('rad-azim-m').value) || 0;
+        const s = parseFloat(document.getElementById('rad-azim-s').value) || 0;
+        azimDecimal = g + (m / 60) + (s / 3600);
+      }
+
+      if (isNaN(azimDecimal)) {
+        showToast("⚠️ Ingresa un valor de Acimut válido");
+        return;
+      }
+
+      // Trig Radians Conversion
+      const azimRad = (azimDecimal * Math.PI) / 180;
+      const vAngleRad = (vAngleDeg * Math.PI) / 180;
+
+      // Distancia Horizontal y Desnivel (Trigonometría Esférica Básica)
+      const distHoriz = dist * Math.sin(vAngleRad);
+      const deltaZ = dist * Math.cos(vAngleRad);
+
+      // Coordenadas Finales
+      const norteFinal = nOr + (distHoriz * Math.cos(azimRad));
+      const esteFinal = eOr + (distHoriz * Math.sin(azimRad));
+      const cotaFinal = zOr + deltaZ - hp;
+
+      // Mostrar Resultados
+      document.getElementById('rad-resultado-card').classList.remove('hidden');
+      document.getElementById('rad-res-id').innerText = idPunto;
+      document.getElementById('res-norte').innerText = norteFinal.toFixed(3);
+      document.getElementById('res-este').innerText = esteFinal.toFixed(3);
+      document.getElementById('res-cota').innerText = cotaFinal.toFixed(3);
+
+      // Agregar a la Lista
+      agregarPunto({
+        id: idPunto,
+        norte: norteFinal,
+        este: esteFinal,
+        cota: cotaFinal,
+        tipo: 'RADIACIÓN',
+        desc: `Az:${azimDecimal.toFixed(2)}° D:${distHoriz.toFixed(2)}m`
+      });
+
+      incrementarIdPunto('rad-punto');
+      showToast(`Punto ${idPunto} calculado con éxito`);
+    }
+
+    // MÓDULO 3: CÁLCULO INVERSO
+    function calcularInversa() {
+      const n1 = parseFloat(document.getElementById('inv-n1').value);
+      const e1 = parseFloat(document.getElementById('inv-e1').value);
+      const z1 = parseFloat(document.getElementById('inv-z1').value) || 0;
+
+      const n2 = parseFloat(document.getElementById('inv-n2').value);
+      const e2 = parseFloat(document.getElementById('inv-e2').value);
+      const z2 = parseFloat(document.getElementById('inv-z2').value) || 0;
+
+      if (isNaN(n1) || isNaN(e1) || isNaN(n2) || isNaN(e2)) {
+        showToast("⚠️ Completa las coordenadas Norte y Este de A y B");
+        return;
+      }
+
+      const dN = n2 - n1;
+      const dE = e2 - e1;
+      const dZ = z2 - z1;
+
+      // Distancia Horizontal
+      const distHoriz = Math.sqrt(dN * dN + dE * dE);
+      
+      // Azimut en radianes y grados
+      let azimRad = Math.atan2(dE, dN);
+      let azimDeg = (azimRad * 180) / Math.PI;
+      if (azimDeg < 0) azimDeg += 360;
+
+      // Formatear Azimut a GMS
+      const g = Math.floor(azimDeg);
+      const m = Math.floor((azimDeg - g) * 60);
+      const s = ((azimDeg - g - m / 60) * 3600).toFixed(1);
+
+      // Pendiente %
+      const pendiente = distHoriz !== 0 ? (dZ / distHoriz) * 100 : 0;
+
+      // Mostrar Resultados
+      document.getElementById('inv-resultado').classList.remove('hidden');
+      document.getElementById('inv-res-dh').innerText = distHoriz.toFixed(3) + " m";
+      document.getElementById('inv-res-dz').innerText = dZ.toFixed(3) + " m";
+      document.getElementById('inv-res-azim').innerText = `${g}° ${m}' ${s}" (${azimDeg.toFixed(3)}°)`;
+      document.getElementById('inv-res-pend').innerText = pendiente.toFixed(2) + " %";
+    }
+
+    // MÓDULO 4: GESTIÓN DE PUNTOS & TABLA
+    function agregarPunto(pt) {
+      puntos.push(pt);
+      guardarLocalStorage();
+      renderTablaPuntos();
+    }
+
+    function renderTablaPuntos() {
+      const tbody = document.getElementById('tabla-puntos-body');
+      const emptyRow = document.getElementById('row-empty');
+      const badge = document.getElementById('badge-count');
+      const totalCount = document.getElementById('total-puntos-count');
+
+      totalCount.innerText = puntos.length;
+
+      if (puntos.length > 0) {
+        badge.classList.remove('hidden');
+        badge.innerText = puntos.length;
+        if (emptyRow) emptyRow.remove();
+
+        tbody.innerHTML = puntos.map((p, index) => `
+          <tr class="hover:bg-gray-800/50 transition">
+            <td class="p-3 font-bold text-amber-400">${p.id}</td>
+            <td class="p-3">${p.norte.toFixed(3)}</td>
+            <td class="p-3">${p.este.toFixed(3)}</td>
+            <td class="p-3 text-emerald-400 font-bold">${p.cota.toFixed(3)}</td>
+            <td class="p-3 text-gray-400 text-[11px]">${p.tipo} <br><span class="text-gray-500">${p.desc}</span></td>
+            <td class="p-3 text-center">
+              <button onclick="eliminarPunto(${index})" class="text-red-400 hover:text-red-300 p-1 rounded hover:bg-gray-800">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+        lucide.createIcons();
+      } else {
+        badge.classList.add('hidden');
+        tbody.innerHTML = `
+          <tr id="row-empty">
+            <td colspan="6" class="p-6 text-center text-gray-500 font-sans italic">
+              No hay puntos registrados aún.
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    function eliminarPunto(index) {
+      puntos.splice(index, 1);
+      guardarLocalStorage();
+      renderTablaPuntos();
+      showToast("Punto eliminado");
+    }
+
+    function exportarCSV() {
+      if (puntos.length === 0) {
+        showToast("⚠️ No hay puntos para exportar");
+        return;
+      }
+
+      let csv = "ID,NORTE,ESTE,COTA,TIPO,DESCRIPCION\n";
+      puntos.forEach(p => {
+        csv += `${p.id},${p.norte.toFixed(3)},${p.este.toFixed(3)},${p.cota.toFixed(3)},${p.tipo},${p.desc}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Levantamiento_Topo_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Archivo CSV Descargado");
+    }
+
+    function copiarPUNTOS() {
+      if (puntos.length === 0) {
+        showToast("⚠️ No hay puntos guardados");
+        return;
+      }
+
+      let text = "PUNTO\tNORTE\tESTE\tCOTA\tDESCRIPCION\n";
+      puntos.forEach(p => {
+        text += `${p.id}\t${p.norte.toFixed(3)}\t${p.este.toFixed(3)}\t${p.cota.toFixed(3)}\t${p.desc}\n`;
+      });
+
+      const input = document.createElement('textarea');
+      input.value = text;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+
+      showToast("📋 Coordenadas copiadas al portapapeles");
+    }
+
+    // AUXILIARES
+    function incrementarIdPunto(inputId) {
+      const input = document.getElementById(inputId);
+      const val = input.value;
+      const parts = val.split(/(\d+)/);
+      if (parts.length >= 2) {
+        const num = parseInt(parts[1]) + 1;
+        input.value = parts[0] + num;
+      }
+    }
+
+    function guardarLocalStorage() {
+      localStorage.setItem('topofield_puntos', JSON.stringify(puntos));
+    }
+
+    function cargarLocalStorage() {
+      const data = localStorage.getItem('topofield_puntos');
+      if (data) {
+        try {
+          puntos = JSON.parse(data);
+          renderTablaPuntos();
+        } catch (e) {
+          puntos = [];
+        }
+      }
+    }
+
+    function clearCurrentProject() {
+      if (confirm("¿Deseas reiniciar todos los datos del proyecto actual?")) {
+        puntos = [];
+        estacionActual.ai = null;
+        guardarLocalStorage();
+        renderTablaPuntos();
+        document.getElementById('disp-ai').innerText = '--- m';
+        showToast("Proyecto reiniciado");
+      }
+    }
+
+    function actualizarUIEstacion() {
+      document.getElementById('est-norte').value = estacionActual.norte.toFixed(3);
+      document.getElementById('est-este').value = estacionActual.este.toFixed(3);
+      document.getElementById('est-cota').value = estacionActual.cota.toFixed(3);
+    }
+  </script>
+</body>
+</html>
